@@ -2,3 +2,5 @@ streamlit
 openai
 pyannote.audio
 langchain
+pandas
+openai-whisper
