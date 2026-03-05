@@ -1,6 +1,9 @@
 import streamlit as st
 import time
 import pandas as pd
+import tempfile
+import os
+import whisper
 
 # 1. Page Configuration
 st.set_page_config(page_title="ClassifAI", page_icon="🎓", layout="centered")
@@ -16,9 +19,36 @@ uploaded_file = st.file_uploader("Drag and drop classroom audio file here", type
 # 4. Action Button
 if st.button("Analyze Audio", type="primary", use_container_width=True):
     if uploaded_file is not None:
+
         # Simulate the time it takes to process audio
         with st.spinner("Processing audio... (Diarization & Transcription)"):
             time.sleep(2) # Pauses for 2 seconds to simulate work
+
+        # Save the uploaded file to a temporary file on the disk
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
+            tmp_file.write(uploaded_file.getvalue())
+            tmp_file_path = tmp_file.name # Save the path to hand to Whisper
+            
+        st.success("File saved temporarily! Ready for Whisper.")
+        
+        # We will put the Whisper code here next...
+        with st.spinner("Transcribing audio with Whisper... this might take a minute."):
+            # Load the 'base' model (good balance of speed and accuracy for a prototype)
+            model = whisper.load_model("base")
+            
+            # Transcribe the audio
+            result = model.transcribe(tmp_file_path)
+            
+            st.write("### Raw Transcript with Timestamps")
+            
+            # Loop through the segments to show the timestamps
+            for segment in result["segments"]:
+                start = segment['start']
+                end = segment['end']
+                text = segment['text']
+                
+                # Display it nicely in Streamlit
+                st.write(f"**[{start:.2f}s - {end:.2f}s]:** {text}")
             
         st.success("Analysis Complete!")
         
@@ -60,6 +90,10 @@ if st.button("Analyze Audio", type="primary", use_container_width=True):
         
         # Display the table cleanly
         st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+        # Cleanup: Delete the file when we are done
+        os.remove(tmp_file_path)
         
     else:
         st.warning("Please upload an audio file first!")
