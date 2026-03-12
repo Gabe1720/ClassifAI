@@ -1,6 +1,7 @@
 from pydub import AudioSegment
 from pyannote.audio import Pipeline
 import time
+import os
 
 # --- 1. PREPROCESSING: Format Standardization ---
 def format_audio(input_file_path, output_file_path):
@@ -46,7 +47,19 @@ if __name__ == "__main__":
     # Replace these with  actual files and token
     YOUR_TEST_FILE = "Lecture_snippet.m4a"
     STANDARDIZED_FILE = "clean_ready_for_ai.wav"
-    YOUR_HUGGINGFACE_TOKEN = "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" 
+    YOUR_HUGGINGFACE_TOKEN = "" 
+
+    # Get the directory where this python script is located
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    token_file_path = os.path.join(current_dir, "hf_token.txt")
+
+    # Read the token from the file
+    try:
+        with open(token_file_path, "r") as file:
+            YOUR_HUGGINGFACE_TOKEN = file.read().strip()
+    except FileNotFoundError:
+        print("Error: hf_token.txt not found. Please create it in the project root.")
+        exit()
 
     # 1. Format the audio
     format_audio(YOUR_TEST_FILE, STANDARDIZED_FILE)
