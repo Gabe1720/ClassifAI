@@ -1,5 +1,5 @@
 # ClassifAI
-##ClassifAI project for CSE648
+## ClassifAI project for CSE648
 
 ### 1. Getting Started
 
