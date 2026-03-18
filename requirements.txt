@@ -1,6 +1,7 @@
 streamlit
 openai-whisper
 pydub
+pyaudioop
 scipy
 noisereduce
 pyannote.audio
