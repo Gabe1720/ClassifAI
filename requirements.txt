@@ -4,3 +4,4 @@ pyannote.audio
 langchain
 pandas
 openai-whisper
+pydub
