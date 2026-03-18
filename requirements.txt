@@ -4,4 +4,3 @@ pydub
 scipy
 noisereduce
 pyannote.audio
-pyaudioop
