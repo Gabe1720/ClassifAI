@@ -1,99 +1,100 @@
 import streamlit as st
-import time
-import pandas as pd
 import tempfile
 import os
 import whisper
+from pydub import AudioSegment
+from scipy.io import wavfile
+import noisereduce as nr
+from pyannote.audio import Pipeline
+import time
+import csv # Added for logging results
 
-# 1. Page Configuration
-st.set_page_config(page_title="ClassifAI", page_icon="🎓", layout="centered")
+# --- Helper Functions ---
+def format_audio(input_file_path, output_file_path):
+    audio = AudioSegment.from_file(input_file_path)
+    audio = audio.set_channels(1)
+    audio = audio.set_frame_rate(16000)
+    audio.export(output_file_path, format="wav")
 
-# 2. Header Section
+def denoise_audio(input_file_path, output_file_path):
+    rate, data = wavfile.read(input_file_path)
+    reduced_noise = nr.reduce_noise(y=data, sr=rate, prop_decrease=0.8)
+    wavfile.write(output_file_path, rate, reduced_noise)
+
+def get_hf_token():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    token_file_path = os.path.join(current_dir, "hf_token.txt")
+    with open(token_file_path, "r") as file:
+        return file.read().strip()
+
+# --- Streamlit UI ---
 st.title("ClassifAI 🎓")
-st.subheader("AI-Driven Instructional Feedback System")
-st.write("Upload a classroom recording to analyze talking distribution and question categories.")
 
-# 3. File Uploader
-uploaded_file = st.file_uploader("Drag and drop classroom audio file here", type=["wav", "mp3", "m4a"])
+# --- NEW: Model Selection Dropdown ---
+selected_model = st.selectbox(
+    "Select Whisper Model for Benchmarking:",
+    ("tiny.en", "base.en", "small.en", "medium.en"),
+    index=2 # Defaults to small.en
+)
 
-# 4. Action Button
-if st.button("Analyze Audio", type="primary", use_container_width=True):
+uploaded_file = st.file_uploader("Upload Audio", type=["wav", "mp3", "m4a"])
+
+if st.button("Analyze Audio", type="primary"):
     if uploaded_file is not None:
-
-        # Simulate the time it takes to process audio
-        with st.spinner("Processing audio... (Diarization & Transcription)"):
-            time.sleep(2) # Pauses for 2 seconds to simulate work
-
-        # Save the uploaded file to a temporary file on the disk
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
-            tmp_file.write(uploaded_file.getvalue())
-            tmp_file_path = tmp_file.name # Save the path to hand to Whisper
-            
-        st.success("File saved temporarily! Ready for Whisper.")
         
-        # We will put the Whisper code here next...
-        with st.spinner("Transcribing audio with Whisper... this might take a minute."):
-            # Load the 'base' model (good balance of speed and accuracy for a prototype)
-            model = whisper.load_model("base")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".m4a") as raw_file:
+            raw_file.write(uploaded_file.getvalue())
+            raw_path = raw_file.name
             
-            # Transcribe the audio
-            result = model.transcribe(tmp_file_path)
+        st.write("Processing audio pipeline...")
+        
+        standardized_path = "temp_standardized.wav"
+        denoised_path = "clean_ready_for_ai.wav"
+        
+        with st.spinner("Standardizing and Denoising Audio..."):
+            format_audio(raw_path, standardized_path)
+            denoise_audio(standardized_path, denoised_path)
             
-            st.write("### Raw Transcript with Timestamps")
+        with st.spinner(f"Transcribing with {selected_model}..."):
+            # --- NEW: Timing and Model Loading ---
+            transcription_start = time.time()
             
-            # Loop through the segments to show the timestamps
-            for segment in result["segments"]:
-                start = segment['start']
-                end = segment['end']
-                text = segment['text']
+            # Load the user-selected model
+            model = whisper.load_model(selected_model)
+            result = model.transcribe(standardized_path)
+            
+            transcription_end = time.time()
+            runtime = transcription_end - transcription_start
+            
+            st.success(f"Transcription complete in {runtime:.2f} seconds!")
+            
+            # --- NEW: Save to Local CSV ---
+            csv_filename = "benchmark_results.csv"
+            file_exists = os.path.isfile(csv_filename)
+            
+            with open(csv_filename, mode='a', newline='') as file:
+                writer = csv.writer(file)
+                # Write the header if the file is brand new
+                if not file_exists:
+                    writer.writerow(["Model", "Audio Filename", "Runtime (Seconds)"])
                 
-                # Display it nicely in Streamlit
-                st.write(f"**[{start:.2f}s - {end:.2f}s]:** {text}")
+                # Write the benchmark data
+                writer.writerow([selected_model, uploaded_file.name, round(runtime, 2)])
             
-        st.success("Analysis Complete!")
-        
-        st.divider()
-        
-        # 5. Results Section: Talking Distribution
-        st.header("Analysis Results")
-        st.subheader("Talking Distribution")
-        
-        # Using Streamlit columns to display stats side-by-side
-        col1, col2 = st.columns(2)
-        col1.metric(label="Teacher Talk Time", value="65%")
-        col2.metric(label="Student Talk Time", value="35%")
-        
-        # Visual progress bar for the ratio
-        st.progress(65, text="Teacher vs. Student Ratio")
-        
-        st.divider()
-        
-        # 6. Results Section: Question Categorization
-        st.subheader("Question Categorization (Costa's Levels)")
-        
-        # Creating a placeholder dataframe to mimic the final output
-        mock_data = {
-            "Timestamp": ["04:12", "08:45", "14:20"],
-            "Question Asked": [
-                "What is the output of this specific line of code?",
-                "How does this approach compare to the one we used last week?",
-                "If we change the algorithm, predict what will happen to the efficiency."
-            ],
-            "Costa's Level": [
-                "Level 1 (Gathering)", 
-                "Level 2 (Processing)", 
-                "Level 3 (Applying)"
-            ]
-        }
-        
-        df = pd.DataFrame(mock_data)
-        
-        # Display the table cleanly
-        st.dataframe(df, use_container_width=True, hide_index=True)
+            st.info(f"Result saved to `{csv_filename}` in your project folder.")
 
+        with st.spinner("Diarizing with Pyannote..."):
+            token = get_hf_token()
+            pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=token)
+            diarization = pipeline(denoised_path)
+            st.success("Diarization complete!")
 
-        # Cleanup: Delete the file when we are done
-        os.remove(tmp_file_path)
+        # Cleanup
+        os.remove(raw_path)
+        os.remove(standardized_path)
+        os.remove(denoised_path)
         
-    else:
-        st.warning("Please upload an audio file first!")
+        # (Optional) Clear GPU memory after the run to be extra safe
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
