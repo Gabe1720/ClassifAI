@@ -1,7 +1,6 @@
 streamlit
-openai
-pyannote.audio
-langchain
-pandas
 openai-whisper
 pydub
+scipy
+noisereduce
+pyannote.audio
