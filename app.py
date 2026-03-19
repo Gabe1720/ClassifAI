@@ -9,7 +9,9 @@ import gc # Free up GPU VRAM before Diarization
 import torchaudio
 if not hasattr(torchaudio, 'set_audio_backend'):
     torchaudio.set_audio_backend = lambda x: None
-
+if not hasattr(torchaudio, 'get_audio_backend'):
+    torchaudio.get_audio_backend = lambda: "soundfile"
+    
 # --- AI and Audio Libraries ---
 import whisper
 from pydub import AudioSegment
