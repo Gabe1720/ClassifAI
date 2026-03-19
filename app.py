@@ -10,6 +10,11 @@ import time
 import csv # Added for logging results
 import gc # Free up GPU VRAM before Diarization
 
+# --- NEW: The Torchaudio Cloud Patch ---
+import torchaudio
+if not hasattr(torchaudio, 'set_audio_backend'):
+    torchaudio.set_audio_backend = lambda x: None
+
 # --- Helper Functions ---
 def format_audio(input_file_path, output_file_path):
     audio = AudioSegment.from_file(input_file_path)
