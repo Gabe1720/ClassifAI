@@ -3,4 +3,4 @@ openai-whisper
 pydub
 scipy
 noisereduce
-pyannote.audio
+pyannote.audio==3.1.1
