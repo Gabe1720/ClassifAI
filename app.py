@@ -5,15 +5,6 @@ import time
 import csv # Added for logging results
 import gc # Free up GPU VRAM before Diarization
 
-# --- The Torchaudio Cloud Patch ---
-import torchaudio
-if not hasattr(torchaudio, 'set_audio_backend'):
-    torchaudio.set_audio_backend = lambda x: None
-if not hasattr(torchaudio, 'get_audio_backend'):
-    torchaudio.get_audio_backend = lambda: "soundfile"
-if not hasattr(torchaudio, 'list_audio_backends'):
-    torchaudio.list_audio_backends = lambda: ["soundfile", "sox_io"]
-
 # --- AI and Audio Libraries ---
 import whisper
 from pydub import AudioSegment
