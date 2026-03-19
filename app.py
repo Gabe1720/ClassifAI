@@ -1,11 +1,6 @@
 import streamlit as st
 import tempfile
 import os
-import whisper
-from pydub import AudioSegment
-from scipy.io import wavfile
-import noisereduce as nr
-from pyannote.audio import Pipeline
 import time
 import csv # Added for logging results
 import gc # Free up GPU VRAM before Diarization
@@ -14,6 +9,13 @@ import gc # Free up GPU VRAM before Diarization
 import torchaudio
 if not hasattr(torchaudio, 'set_audio_backend'):
     torchaudio.set_audio_backend = lambda x: None
+
+# --- AI and Audio Libraries ---
+import whisper
+from pydub import AudioSegment
+from scipy.io import wavfile
+import noisereduce as nr
+from pyannote.audio import Pipeline
 
 # --- Helper Functions ---
 def format_audio(input_file_path, output_file_path):
