@@ -79,8 +79,18 @@ if st.button("Analyze Audio", type="primary"):
 
         with st.spinner("Diarizing with Pyannote..."):
             token = st.secrets["HF_TOKEN"]
-            pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=token)
+            pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", token=token)
             diarization = pipeline(denoised_path)
+
+            '''
+            Code for iterating over diarization results:
+
+            annotation = diarization.speaker_diarization
+            # Print out the timestamp and the assigned speaker
+            for turn, _, speaker in annotation.itertracks(yield_label=True):
+                print(f"start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
+
+            '''
             st.success("Diarization complete!")
 
         # Cleanup
