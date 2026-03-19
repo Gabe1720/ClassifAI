@@ -9,3 +9,4 @@ pyannote-core==5.0.0
 pyannote-metrics==3.2.1
 pyannote-pipeline==3.0.1
 huggingface_hub==0.22.2
+speechbrain==0.5.16
