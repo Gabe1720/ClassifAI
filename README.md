@@ -9,12 +9,14 @@
   <img width="1918" height="1028" alt="image" src="https://github.com/user-attachments/assets/e559a9a8-7dae-4177-9a08-322f44f8fba7" />
 
 
-### 2. Using ClassifAI
+### Using ClassifAI via file upload
 
 - Once the page is uploaded, select a whisper model from the dropdown to evaluate with.
 
   <img width="957" height="451" alt="image" src="https://github.com/user-attachments/assets/2ca81d82-9709-40d7-9505-b95152343fb7" />
 
-- Next, upload an audio file (WAV, MP3, M4A).
+- Next, upload an audio file (acceptable formats include WAV, MP3, and M4A).
 
 <img width="928" height="231" alt="image" src="https://github.com/user-attachments/assets/70a3062a-fde9-4939-8eb0-e8becc9f8e4b" />
+
+- Click "Analyze Audio" to begin the evaluation process.
