@@ -1,7 +1,7 @@
 # ClassifAI
 ## ClassifAI project for CSE648
 
-### 1. Getting Started
+### Getting Started
 
 - Open the Streamlit app using the following link: https://classifai-gtgfupjc9uedmbjc3fzudu.streamlit.app/
 - Activate the website when prompted. Due to Streamlit's nature, the site's activation time may be considerable.
