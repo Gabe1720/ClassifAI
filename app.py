@@ -21,12 +21,6 @@ def denoise_audio(input_file_path, output_file_path):
     reduced_noise = nr.reduce_noise(y=data, sr=rate, prop_decrease=0.8)
     wavfile.write(output_file_path, rate, reduced_noise)
 
-def get_hf_token():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    token_file_path = os.path.join(current_dir, "hf_token.txt")
-    with open(token_file_path, "r") as file:
-        return file.read().strip()
-
 # --- Streamlit UI ---
 st.title("ClassifAI 🎓")
 
@@ -84,7 +78,7 @@ if st.button("Analyze Audio", type="primary"):
             st.info(f"Result saved to `{csv_filename}` in your project folder.")
 
         with st.spinner("Diarizing with Pyannote..."):
-            token = get_hf_token()
+            token = st.secrets["HF_TOKEN"]
             pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=token)
             diarization = pipeline(denoised_path)
             st.success("Diarization complete!")
