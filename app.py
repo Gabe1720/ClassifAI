@@ -8,6 +8,7 @@ import noisereduce as nr
 from pyannote.audio import Pipeline
 import time
 import csv # Added for logging results
+import gc # Free up GPU VRAM before Diarization
 
 # --- Helper Functions ---
 def format_audio(input_file_path, output_file_path):
@@ -50,55 +51,91 @@ if st.button("Analyze Audio", type="primary"):
             denoise_audio(standardized_path, denoised_path)
             
         with st.spinner(f"Transcribing with {selected_model}..."):
-            # --- NEW: Timing and Model Loading ---
             transcription_start = time.time()
             
-            # Load the user-selected model
+            # Load model and transcribe
             model = whisper.load_model(selected_model)
             result = model.transcribe(standardized_path)
             
             transcription_end = time.time()
-            runtime = transcription_end - transcription_start
+            transcription_runtime = transcription_end - transcription_start
             
-            st.success(f"Transcription complete in {runtime:.2f} seconds!")
+            # --- NEW: Format Whisper Output ---
+            whisper_text_output = ""
+            for segment in result["segments"]:
+                whisper_text_output += f"[{segment['start']:.2f}s - {segment['end']:.2f}s]: {segment['text']}\n"
             
-            # --- NEW: Save to Local CSV ---
+            # Log Benchmark Data
             csv_filename = "benchmark_results.csv"
             file_exists = os.path.isfile(csv_filename)
-            
             with open(csv_filename, mode='a', newline='') as file:
                 writer = csv.writer(file)
-                # Write the header if the file is brand new
                 if not file_exists:
                     writer.writerow(["Model", "Audio Filename", "Runtime (Seconds)"])
-                
-                # Write the benchmark data
-                writer.writerow([selected_model, uploaded_file.name, round(runtime, 2)])
+                writer.writerow([selected_model, uploaded_file.name, round(transcription_runtime, 2)])
+
+            # Delete the Whisper model and result from Python's memory
+            del model 
+            del result
             
-            st.info(f"Result saved to `{csv_filename}` in your project folder.")
+            # Force Python to run garbage collection
+            gc.collect()
+
+            # Empty the PyTorch GPU cache
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
         with st.spinner("Diarizing with Pyannote..."):
             token = st.secrets["HF_TOKEN"]
+            diarization_start = time.time()
             pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=token)
+            # --- NEW: Force Pyannote onto the GPU ---
+            import torch
+            if torch.cuda.is_available():
+                pipeline.to(torch.device("cuda"))
+                
             diarization = pipeline(denoised_path)
+            diarization_end = time.time()
+            diarization_runtime = diarization_end - diarization_start
 
-            '''
-            Code for iterating over diarization results:
-
-            annotation = diarization.speaker_diarization
-            # Print out the timestamp and the assigned speaker
-            for turn, _, speaker in annotation.itertracks(yield_label=True):
-                print(f"start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
-
-            '''
-            st.success("Diarization complete!")
+            # Log Benchmark Data
+            csv_filename = "benchmark_results_diarization.csv"
+            file_exists = os.path.isfile(csv_filename)
+            with open(csv_filename, mode='a', newline='') as file:
+                writer = csv.writer(file)
+                if not file_exists:
+                    writer.writerow(["Audio Filename", "Runtime (Seconds)"])
+                writer.writerow([uploaded_file.name, round(diarization_runtime, 2)])
+            
+            # --- NEW: Format Pyannote Output ---
+            pyannote_text_output = ""
+            for turn, _, speaker in diarization.itertracks(yield_label=True):
+                pyannote_text_output += f"[{turn.start:.2f}s - {turn.end:.2f}s]: {speaker}\n"
+                
+        st.success(f"Analysis Complete! Total GPU Runtime: {transcription_runtime + diarization_runtime:.2f} seconds")
+        st.divider()
+        
+        # --- NEW: Side-by-Side Display Dashboard ---
+        st.header("Raw Model Outputs")
+        st.write("These raw outputs will be merged in the next phase of development.")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("📝 Whisper Transcription")
+            # Using st.text_area to create a nice scrollable box for the text
+            st.text_area("Timestamps & Text", whisper_text_output, height=400, disabled=True)
+            
+        with col2:
+            st.subheader("🗣️ Pyannote Diarization")
+            st.text_area("Timestamps & Speakers", pyannote_text_output, height=400, disabled=True)
 
         # Cleanup
         os.remove(raw_path)
         os.remove(standardized_path)
         os.remove(denoised_path)
         
-        # (Optional) Clear GPU memory after the run to be extra safe
         import torch
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
