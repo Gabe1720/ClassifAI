@@ -79,7 +79,7 @@ if st.button("Analyze Audio", type="primary"):
 
         with st.spinner("Diarizing with Pyannote..."):
             token = st.secrets["HF_TOKEN"]
-            pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", token=token)
+            pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=token)
             diarization = pipeline(denoised_path)
 
             '''

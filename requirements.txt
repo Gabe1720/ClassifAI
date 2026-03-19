@@ -4,3 +4,8 @@ pydub
 scipy
 noisereduce
 pyannote.audio==3.1.1
+numpy<2.0.0
+pyannote-core==5.0.0
+pyannote-metrics==3.2.1
+pyannote-pipeline==3.0.1
+huggingface_hub==0.22.2
