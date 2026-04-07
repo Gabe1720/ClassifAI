@@ -4,3 +4,6 @@ benchmark_results.csv
 clean_ready_for_ai.wav
 temp_standardized.wav
 benchmark_results_diarization.csv
+old_cli_benchmark.py
+dev_debug_logs/
+markdown/
