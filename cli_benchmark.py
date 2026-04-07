@@ -208,7 +208,7 @@ def main():
     print(f"F1 Score:  {F1.mean().item():.4f}")
 
     # 7. Log to CSV
-    csv_filename = "benchmark_results.csv"
+    csv_filename = "dev_debug_logs/benchmark_results.csv"
     file_exists = os.path.isfile(csv_filename)
     audio_filename = os.path.basename(AUDIO_FILE_PATH)
     
