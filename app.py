@@ -19,10 +19,18 @@ def format_audio(input_file_path, output_file_path):
     audio = audio.set_frame_rate(16000)
     audio.export(output_file_path, format="wav")
 
-def denoise_audio(input_file_path, output_file_path):
-    rate, data = wavfile.read(input_file_path)
-    reduced_noise = nr.reduce_noise(y=data, sr=rate, prop_decrease=0.8)
-    wavfile.write(output_file_path, rate, reduced_noise)
+def denoise_audio(input_file_path: str, output_file_path: str) -> None:
+    """
+    Reads a standardized WAV file, applies noise reduction, and writes the output.
+    """
+    try:
+        rate, data = wavfile.read(input_file_path)
+        reduced_noise = nr.reduce_noise(y=data, sr=rate, prop_decrease=0.8)
+        wavfile.write(output_file_path, rate, reduced_noise)
+    except FileNotFoundError:
+        st.error(f"Audio file not found at {input_file_path}")
+    except Exception as e:
+        st.error(f"An error occurred during denoising: {e}")
 
 # --- Streamlit UI ---
 st.title("ClassifAI 🎓")
