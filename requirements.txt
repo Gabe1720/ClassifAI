@@ -19,3 +19,5 @@ datasets==2.18.0
 soundfile
 jiwer
 librosa
+pyannote.metrics
+meeteval
