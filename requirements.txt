@@ -10,8 +10,12 @@ numpy<2.0.0
 pyannote-core==5.0.0
 pyannote-metrics==3.2.1
 pyannote-pipeline==3.0.1
-huggingface_hub==0.22.2
+huggingface_hub==0.23.2
 speechbrain==0.5.16
 transformers==4.38.2
 keybert==0.8.4
 sentence-transformers==2.6.1
+datasets==2.18.0
+soundfile
+jiwer
+librosa
