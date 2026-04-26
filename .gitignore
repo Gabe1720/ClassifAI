@@ -7,3 +7,4 @@ benchmark_results_diarization.csv
 old_cli_benchmark.py
 dev_debug_logs/
 markdown/
+current_benchmark_audio.wav
