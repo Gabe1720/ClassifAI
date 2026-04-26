@@ -13,14 +13,14 @@ import noisereduce as nr
 from pyannote.audio import Pipeline
 
 
-# --- Helper Functions ---
+# Format the audio:
 def format_audio(input_file_path, output_file_path):
     audio = AudioSegment.from_file(input_file_path)
     audio = audio.set_channels(1)
     audio = audio.set_frame_rate(16000)
     audio.export(output_file_path, format="wav")
 
-
+# Use noisereduce to clean the audio:
 def denoise_audio(input_file_path: str, output_file_path: str) -> None:
     try:
         rate, data = wavfile.read(input_file_path)
@@ -30,6 +30,25 @@ def denoise_audio(input_file_path: str, output_file_path: str) -> None:
         st.error(f"Audio file not found at {input_file_path}")
     except Exception as e:
         st.error(f"An error occurred during denoising: {e}")
+
+# Categorize transcript lines as questions:
+def isQuestion(text):
+    text_clean = text.strip().lower()
+    score = 0
+    QUESTION_WORDS = (
+        "who", "what", "when", "where", "why", "how",
+        "is", "are", "do", "does", "did",
+        "can", "could", "would", "should",
+        "will", "have", "has"
+    )
+
+    if text_clean.endswith("?") or ("?" in text_clean):
+        score += 1
+
+    if any(text_clean.startswith(q) for q in QUESTION_WORDS):
+        score += 1
+
+    return score == 2
 
 # Function to merge whisper transcript to its estimated speaker:
 def merge_transcript_and_diarization(whisper_segments, diarization):
@@ -196,15 +215,22 @@ if st.button("Analyze Audio", type="primary"):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
+        # Classify questions:
+        for item in merged_segments:
+            item["question"] = isQuestion(item["text"])
+
+        # Label questions and merge text:
         merged_text = ""
         for item in merged_segments:
+            label = "❓" if item ["question"] else ""
+
+
             merged_text += (
                 f"[{item['start']:.2f}s - {item['end']:.2f}s] "
-                f"{item['speaker']}: {item['text']}\n"
+                f"{item['speaker']}: {item['text']} {label}\n"
             )
 
         total_runtime = transcription_runtime + diarization_runtime
-
         st.success(
             f"Analysis Complete! Total GPU Runtime: {total_runtime:.2f} seconds"
         )
