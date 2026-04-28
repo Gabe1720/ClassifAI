@@ -5,22 +5,22 @@ import time
 import csv
 import gc
 
-# --- AI and Audio Libraries ---
 import whisper
 from pydub import AudioSegment
 from scipy.io import wavfile
 import noisereduce as nr
 from pyannote.audio import Pipeline
+import torch
 
 
-# Format the audio:
+# --- Audio Processing ---
+
 def format_audio(input_file_path, output_file_path):
     audio = AudioSegment.from_file(input_file_path)
     audio = audio.set_channels(1)
     audio = audio.set_frame_rate(16000)
     audio.export(output_file_path, format="wav")
 
-# Use noisereduce to clean the audio:
 def denoise_audio(input_file_path: str, output_file_path: str) -> None:
     try:
         rate, data = wavfile.read(input_file_path)
@@ -31,8 +31,48 @@ def denoise_audio(input_file_path: str, output_file_path: str) -> None:
     except Exception as e:
         st.error(f"An error occurred during denoising: {e}")
 
-# Categorize transcript lines as questions:
-def isQuestion(text):
+
+# --- Transcription ---
+
+def transcribe_audio(path, model_name):
+    model = whisper.load_model(model_name)
+    start = time.time()
+    result = model.transcribe(path)
+    runtime = time.time() - start
+    del model
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    return result, runtime
+
+def save_benchmark(model_name, audio_filename, runtime):
+    csv_filename = "benchmark_results.csv"
+    file_exists = os.path.isfile(csv_filename)
+    with open(csv_filename, mode="a", newline="") as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(["Model", "Audio Filename", "Runtime (Seconds)"])
+        writer.writerow([model_name, audio_filename, round(runtime, 2)])
+
+
+# --- Diarization ---
+
+def run_diarization(path, token):
+    pipeline = Pipeline.from_pretrained(
+        "pyannote/speaker-diarization-3.1",
+        use_auth_token=token
+    )
+    if torch.cuda.is_available():
+        pipeline.to(torch.device("cuda"))
+    start = time.time()
+    diarization = pipeline(path)
+    runtime = time.time() - start
+    return diarization, runtime
+
+
+# --- Analysis ---
+
+def is_question(text):
     text_clean = text.strip().lower()
     score = 0
     QUESTION_WORDS = (
@@ -41,19 +81,13 @@ def isQuestion(text):
         "can", "could", "would", "should",
         "will", "have", "has"
     )
-
     if text_clean.endswith("?") or ("?" in text_clean):
         score += 1
-
     if any(text_clean.startswith(q) for q in QUESTION_WORDS):
         score += 1
-
     return score == 2
 
-# Function to merge whisper transcript to its estimated speaker:
 def merge_transcript_and_diarization(whisper_segments, diarization):
-
-    # Convert pyannote output into a list we can reuse
     speaker_turns = []
     for turn, _, speaker in diarization.itertracks(yield_label=True):
         speaker_turns.append({
@@ -62,7 +96,6 @@ def merge_transcript_and_diarization(whisper_segments, diarization):
             "speaker": speaker
         })
 
-    # Fallback only if diarization completely failed
     if not speaker_turns:
         return [
             {
@@ -75,7 +108,6 @@ def merge_transcript_and_diarization(whisper_segments, diarization):
         ]
 
     merged_segments = []
-
     for segment in whisper_segments:
         seg_start = float(segment["start"])
         seg_end = float(segment["end"])
@@ -89,33 +121,18 @@ def merge_transcript_and_diarization(whisper_segments, diarization):
         for turn in speaker_turns:
             turn_start = turn["start"]
             turn_end = turn["end"]
-
-            # overlap length
-            overlap = max(
-                0.0,
-                min(seg_end, turn_end) - max(seg_start, turn_start)
-            )
-
-            # midpoint distance for fallback / tie-breaking
+            overlap = max(0.0, min(seg_end, turn_end) - max(seg_start, turn_start))
             turn_mid = (turn_start + turn_end) / 2.0
             distance = abs(seg_mid - turn_mid)
 
-            # choose this speaker if:
-            # - larger overlap
-            # - same overlap but closer in time
-            # - same overlap and distance but longer turn
             if (
                 overlap > best_overlap
-                or (
-                    overlap == best_overlap
-                    and distance < best_distance
-                )
+                or (overlap == best_overlap and distance < best_distance)
                 or (
                     overlap == best_overlap
                     and distance == best_distance
                     and best_turn is not None
-                    and (turn_end - turn_start)
-                    > (best_turn["end"] - best_turn["start"])
+                    and (turn_end - turn_start) > (best_turn["end"] - best_turn["start"])
                 )
             ):
                 best_turn = turn
@@ -131,7 +148,31 @@ def merge_transcript_and_diarization(whisper_segments, diarization):
 
     return merged_segments
 
+def classify_segments(merged_segments):
+    for item in merged_segments:
+        item["question"] = is_question(item["text"])
+    return merged_segments
+
+def format_transcript(merged_segments):
+    merged_text = ""
+    for item in merged_segments:
+        label = "❓" if item["question"] else ""
+        merged_text += (
+            f"[{item['start']:.2f}s - {item['end']:.2f}s] "
+            f"{item['speaker']}: {item['text']} {label}\n"
+        )
+    return merged_text
+
+def cleanup_temp_files(*paths):
+    for path in paths:
+        try:
+            os.remove(path)
+        except Exception:
+            pass
+
+
 # --- Streamlit UI ---
+
 st.title("ClassifAI 🎓")
 
 selected_model = st.selectbox(
@@ -149,100 +190,38 @@ if st.button("Analyze Audio", type="primary"):
             raw_file.write(uploaded_file.getvalue())
             raw_path = raw_file.name
 
-        st.write("Processing audio pipeline...")
-
         standardized_path = "temp_standardized.wav"
         denoised_path = "clean_ready_for_ai.wav"
+
+        st.write("Processing audio pipeline...")
 
         with st.spinner("Standardizing and Denoising Audio..."):
             format_audio(raw_path, standardized_path)
             denoise_audio(standardized_path, denoised_path)
 
         with st.spinner(f"Transcribing with {selected_model}..."):
-            transcription_start = time.time()
-
-            model = whisper.load_model(selected_model)
-            result = model.transcribe(standardized_path)
-
-            transcription_end = time.time()
-            transcription_runtime = transcription_end - transcription_start
-
-            csv_filename = "benchmark_results.csv"
-            file_exists = os.path.isfile(csv_filename)
-            with open(csv_filename, mode="a", newline="") as file:
-                writer = csv.writer(file)
-                if not file_exists:
-                    writer.writerow(["Model", "Audio Filename", "Runtime (Seconds)"])
-                writer.writerow([
-                    selected_model,
-                    uploaded_file.name,
-                    round(transcription_runtime, 2)
-                ])
-
-        del model
-        gc.collect()
-
-        import torch
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+            result, transcription_runtime = transcribe_audio(standardized_path, selected_model)
+            save_benchmark(selected_model, uploaded_file.name, transcription_runtime)
 
         with st.spinner("Diarizing with Pyannote..."):
             token = st.secrets["HF_TOKEN"]
+            diarization, diarization_runtime = run_diarization(denoised_path, token)
 
-            diarization_start = time.time()
-
-            pipeline = Pipeline.from_pretrained(
-                "pyannote/speaker-diarization-3.1",
-                use_auth_token=token
-            )
-
-            if torch.cuda.is_available():
-                pipeline.to(torch.device("cuda"))
-
-            diarization = pipeline(denoised_path)
-
-            diarization_end = time.time()
-            diarization_runtime = diarization_end - diarization_start
-
-        merged_segments = merge_transcript_and_diarization(
-            result["segments"],
-            diarization
-        )
+        merged_segments = merge_transcript_and_diarization(result["segments"], diarization)
 
         del result
         gc.collect()
-
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-        # Classify questions:
-        for item in merged_segments:
-            item["question"] = isQuestion(item["text"])
-
-        # Label questions and merge text:
-        merged_text = ""
-        for item in merged_segments:
-            label = "❓" if item ["question"] else ""
-
-
-            merged_text += (
-                f"[{item['start']:.2f}s - {item['end']:.2f}s] "
-                f"{item['speaker']}: {item['text']} {label}\n"
-            )
+        merged_segments = classify_segments(merged_segments)
+        merged_text = format_transcript(merged_segments)
 
         total_runtime = transcription_runtime + diarization_runtime
-        st.success(
-            f"Analysis Complete! Total GPU Runtime: {total_runtime:.2f} seconds"
-        )
+        st.success(f"Analysis Complete! Total GPU Runtime: {total_runtime:.2f} seconds")
 
         st.header("Merged Transcript with Speaker Labels")
-
-        st.text_area(
-            "Speaker-Labeled Transcript",
-            merged_text,
-            height=500,
-            disabled=True
-        )
+        st.text_area("Speaker-Labeled Transcript", merged_text, height=500, disabled=True)
 
         st.download_button(
             label="Download Transcript",
@@ -251,9 +230,4 @@ if st.button("Analyze Audio", type="primary"):
             mime="text/plain"
         )
 
-        try:
-            os.remove(raw_path)
-            os.remove(standardized_path)
-            os.remove(denoised_path)
-        except Exception:
-            pass
+        cleanup_temp_files(raw_path, standardized_path, denoised_path)
