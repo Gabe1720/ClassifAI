@@ -13,14 +13,22 @@ from pyannote.audio import Pipeline
 import torch
 
 
-# --- Audio Processing ---
-
+# Function to format the audio into a .wav file.
+# Allow whisper to properly read the audio by configuring
+# the file to these settings:
+# -> Convert the audio to a single channel.
+# -> Set the framerate to 16,000Hz
+# -> Output a .wav of the reconfigured file.
 def format_audio(input_file_path, output_file_path):
     audio = AudioSegment.from_file(input_file_path)
     audio = audio.set_channels(1)
     audio = audio.set_frame_rate(16000)
     audio.export(output_file_path, format="wav")
 
+
+# Function to reduce any background noise in the audio file before
+# transcription. This will provide a clean method to improve the quality of
+# both transcription and diarization. 
 def denoise_audio(input_file_path: str, output_file_path: str) -> None:
     try:
         rate, data = wavfile.read(input_file_path)
@@ -32,8 +40,9 @@ def denoise_audio(input_file_path: str, output_file_path: str) -> None:
         st.error(f"An error occurred during denoising: {e}")
 
 
-# --- Transcription ---
-
+# Function to handle the transcription pipeline using
+# the "whisper" library from OpenAI. The model's timestamps
+# are recorded along with the transcribed text.
 def transcribe_audio(path, model_name):
     model = whisper.load_model(model_name)
     start = time.time()
@@ -41,10 +50,16 @@ def transcribe_audio(path, model_name):
     runtime = time.time() - start
     del model
     gc.collect()
+
+    # Allow the transcription to run without a GPU 
+    # (Not recommended for the large models):
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     return result, runtime
 
+
+# Function for benchmarking model results into a csv file.
+# -> Records the model name, audio file, and system runtime.
 def save_benchmark(model_name, audio_filename, runtime):
     csv_filename = "benchmark_results.csv"
     file_exists = os.path.isfile(csv_filename)
@@ -55,26 +70,42 @@ def save_benchmark(model_name, audio_filename, runtime):
         writer.writerow([model_name, audio_filename, round(runtime, 2)])
 
 
-# --- Diarization ---
-
+# Function for handling the speaker diarization 
+# pipeline using the Pyannote library. The 
+# goal of this pipeline is to provide the most accurate 
+# possible speaker labels. Speaker timestamps are
+# also recorded.
 def run_diarization(path, token):
     pipeline = Pipeline.from_pretrained(
         "pyannote/speaker-diarization-3.1",
         use_auth_token=token
     )
+
+    # Allow the diarization to run without a GPU 
+    # (Not recommended for the large models):
     if torch.cuda.is_available():
         pipeline.to(torch.device("cuda"))
+
+    # Record speaker timestamps:
     start = time.time()
     diarization = pipeline(path)
     runtime = time.time() - start
     return diarization, runtime
 
 
-# --- Analysis ---
-
+# Function to handle question classification.
+# A score function will determine the identification
+# of a meaningful question within the transcribed
+# text. The current algorithm handles the following:
+# -> Identify starting question words.
+# -> Identify transcribed question marks.
+# Using these identification methods, a score determines 
+# if a question is in each line.
 def is_question(text):
     text_clean = text.strip().lower()
     score = 0
+
+    # Question words:
     QUESTION_WORDS = (
         "who", "what", "when", "where", "why", "how",
         "is", "are", "do", "does", "did",
@@ -87,6 +118,18 @@ def is_question(text):
         score += 1
     return score == 2
 
+
+# Function to handle the merging of transcipt and diarization outputs.
+# By using an algorithm to estimate relevant timestamps, transcripts
+# are aligned with the closest possible speaker.
+# The implemented algorithm performs the following:
+# -> Convert the diarization output to a list of timestamps and labeled speakers.
+# -> If pyannote diarization failed at any timeframe, label the timeframe to "SPEAKER_00" 
+#    (The first person to be labeled in the file).
+# -> Each transcribed segment is matched with a speaker by calculating overlap and
+#    midpoint distance. This checks if both timestamp segments share certain time frames.
+# -> Output a unified list that matches transcript text with the best possible
+#    speaker, while keeping the transcript timestamps.
 def merge_transcript_and_diarization(whisper_segments, diarization):
     speaker_turns = []
     for turn, _, speaker in diarization.itertracks(yield_label=True):
@@ -148,11 +191,20 @@ def merge_transcript_and_diarization(whisper_segments, diarization):
 
     return merged_segments
 
+
+# Helper function to perform question classification on each
+# line within the merged results. If the text is identified
+# as a question, it will be labeled for formatting.
 def classify_segments(merged_segments):
     for item in merged_segments:
         item["question"] = is_question(item["text"])
     return merged_segments
 
+
+# Helper function to format the results. Each line including the speaker,
+# text line, and timestamp data is appended to an output string. If the line
+# is identified as a question, it will be labeled with a question mark to
+# allow the user to categorize meaningful questions.
 def format_transcript(merged_segments):
     merged_text = ""
     for item in merged_segments:
@@ -163,6 +215,9 @@ def format_transcript(merged_segments):
         )
     return merged_text
 
+
+# Function to clean up any temporary files created by the entire process.
+# Main use is to clean the system data after analysis is completed.
 def cleanup_temp_files(*paths):
     for path in paths:
         try:
