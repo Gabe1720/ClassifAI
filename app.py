@@ -99,24 +99,32 @@ def run_diarization(path, token):
 # text. The current algorithm handles the following:
 # -> Identify starting question words.
 # -> Identify transcribed question marks.
-# Using these identification methods, a score determines 
-# if a question is in each line.
+# A text segment is classified as a question if it either 
+# contains a question mark or starts with a known question word.
 def is_question(text):
     text_clean = text.strip().lower()
-    score = 0
 
-    # Question words:
-    QUESTION_WORDS = (
+    # 1. Direct punctuation check is highly reliable from Whisper
+    if "?" in text_clean:
+        return True
+
+    # 2. Fallback: Check if the segment starts with a question word
+    # Split text into words to prevent false substring matches (e.g., "issue" starting with "is")
+    words = text_clean.split()
+    if not words:
+        return False
+        
+    first_word = words[0].strip(".,!:'\"-")
+
+    QUESTION_WORDS = {
         "who", "what", "when", "where", "why", "how",
         "is", "are", "do", "does", "did",
         "can", "could", "would", "should",
-        "will", "have", "has"
-    )
-    if text_clean.endswith("?") or ("?" in text_clean):
-        score += 1
-    if any(text_clean.startswith(q) for q in QUESTION_WORDS):
-        score += 1
-    return score == 2
+        "will", "have", "has", "which", "whom", "whose", "may", "might"
+    }
+
+    # If punctuation is missing, starting with an interrogative word is a strong indicator
+    return first_word in QUESTION_WORDS
 
 
 # Function to handle the merging of transcipt and diarization outputs.
@@ -196,8 +204,26 @@ def merge_transcript_and_diarization(whisper_segments, diarization):
 # line within the merged results. If the text is identified
 # as a question, it will be labeled for formatting.
 def classify_segments(merged_segments):
-    for item in merged_segments:
-        item["question"] = is_question(item["text"])
+    # for item in merged_segments:
+    #     item["question"] = is_question(item["text"])
+    current_sentence_segments = []
+    current_sentence_text = ""
+
+    for i, item in enumerate(merged_segments):
+        text = item["text"].strip()
+        current_sentence_segments.append(item)
+        current_sentence_text += " " + text
+
+        # If segment ends with punctuation or is the last segment, evaluate the combined sentence
+        if text.endswith(('.', '?', '!')) or i == len(merged_segments) - 1:
+            is_q = is_question(current_sentence_text)
+            for seg in current_sentence_segments:
+                seg["question"] = is_q
+
+            # Reset the buffer for the next sentence
+            current_sentence_segments = []
+            current_sentence_text = ""
+
     return merged_segments
 
 
