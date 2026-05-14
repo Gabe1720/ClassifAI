@@ -17,3 +17,7 @@
   <img width="928" height="231" alt="image" src="https://github.com/user-attachments/assets/70a3062a-fde9-4939-8eb0-e8becc9f8e4b" />
 
 - Click "Analyze Audio" to begin the evaluation process.
+
+### Running ClassifAI on a local device
+
+- Install conda using this <a href="https://www.anaconda.com/docs/getting-started/miniconda/main"> using this link </a>
