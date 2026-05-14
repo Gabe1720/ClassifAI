@@ -20,5 +20,14 @@
 
 ### Running ClassifAI on a local device
 
-- Install conda [using this link.](https://www.anaconda.com/docs/getting-started/miniconda/main)
+- Install conda [from the official installer page.](https://www.anaconda.com/docs/getting-started/miniconda/main)
 - Open the command prompt, and type `conda --version` to check for a successful installation.
+
+- Run the following commands:
+  ```
+  conda create -n classifai python=3.11
+
+  conda activate classifai
+  ```
+
+  - Now, redirect to the folder of this repository on your local device, and install the requirements.txt libraries:
