@@ -36,3 +36,5 @@
 
 - To run ClassifAI, use the command:
   - `streamlit run app.py`
+
+- A localhost browser should open in your default browser, and open the main page of the web application.
