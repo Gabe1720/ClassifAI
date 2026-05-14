@@ -34,4 +34,5 @@
   
   - `pip install -r requirements.txt`
 
-- To run ClassifAI, use the command: `streamlit run app.py`
+- To run ClassifAI, use the command:
+  - `streamlit run app.py`
