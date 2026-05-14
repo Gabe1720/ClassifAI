@@ -31,4 +31,5 @@
   ```
 
 - Now, redirect to the folder of this repository on your local device, and install the requirements.txt libraries:
-  -`pip install -r requirements.txt`
+  
+  - `pip install -r requirements.txt`
