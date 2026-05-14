@@ -16,7 +16,8 @@
 
   <img width="928" height="231" alt="image" src="https://github.com/user-attachments/assets/70a3062a-fde9-4939-8eb0-e8becc9f8e4b" />
 
-- Click "Analyze Audio" to begin the evaluation process.
+- Click "Analyze Audio" to begin the evaluation process. This process should take some time, depending on hardware constraints.
+- The complete, merged transcript with speaker labels will be shown in a scrollable display. These results can be downloaded as a csv file.
 
 ### Running ClassifAI on a local device
 
