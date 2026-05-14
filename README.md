@@ -30,6 +30,8 @@
   conda activate classifai
   ```
 
-- Now, redirect to the folder of this repository on your local device, and install the requirements.txt libraries:
+- Redirect to the folder of this repository on your local device, and install the requirements.txt libraries:
   
   - `pip install -r requirements.txt`
+
+- To run ClassifAI, use the command: `streamlit run app.py`
