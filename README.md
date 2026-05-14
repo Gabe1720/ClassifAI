@@ -20,4 +20,5 @@
 
 ### Running ClassifAI on a local device
 
-- Install conda using this <a href="https://www.anaconda.com/docs/getting-started/miniconda/main"> using this link </a>
+- Install conda <a href="https://www.anaconda.com/docs/getting-started/miniconda/main" target="_blank"> using this link. </a>
+- Open the command prompt, and type `conda --version` to check for a successful installation.
